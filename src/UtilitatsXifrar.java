@@ -8,6 +8,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.*;
 import java.security.cert.Certificate;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.*;
 
 public class UtilitatsXifrar {
@@ -82,15 +87,15 @@ public class UtilitatsXifrar {
 
     public static KeyStore loadKeyStore(String ksFile, String ksPwd) throws Exception {
         KeyStore ks = KeyStore.getInstance("JCEKS");
-        File f = new File (ksFile);
+        File f = new File(ksFile);
         if (f.isFile()) {
-            FileInputStream in = new FileInputStream (f);
+            FileInputStream in = new FileInputStream(f);
             ks.load(in, ksPwd.toCharArray());
         }
         return ks;
     }
 
-    public static void keyPairEncryptDecryptMsg(){
+    public static void keyPairEncryptDecryptMsg() {
         int keySize = 1024;
         Scanner sc = new Scanner(System.in);
         KeyPair clave = UtilitatsXifrar.randomGenerate(keySize);
@@ -100,11 +105,11 @@ public class UtilitatsXifrar {
         System.out.println("Introduce el mensaje que quieres cifrar :");
         String msg = sc.nextLine();
 
-        byte[] msgEncrypt = UtilitatsXifrar.encryptData(clave.getPublic(),msg.getBytes());
+        byte[] msgEncrypt = UtilitatsXifrar.encryptData(clave.getPublic(), msg.getBytes());
 
         System.out.println("Mensaje Cifrado : " + new String(msgEncrypt));
 
-        byte[] msgDecrypt = UtilitatsXifrar.decryptData(clave.getPrivate(),msgEncrypt);
+        byte[] msgDecrypt = UtilitatsXifrar.decryptData(clave.getPrivate(), msgEncrypt);
 
         System.out.println("Mensaje Descifrado : " + new String(msgDecrypt));
 
@@ -120,8 +125,8 @@ public class UtilitatsXifrar {
         String ruta = sc.nextLine();
         System.out.println("Introduce la contraseña del keyStore");
         String pass = sc.nextLine();
-        try{
-            KeyStore keyStore = UtilitatsXifrar.loadKeyStore(ruta,pass);
+        try {
+            KeyStore keyStore = UtilitatsXifrar.loadKeyStore(ruta, pass);
 
             System.out.println("El tipo de keyStore :");
             System.out.println(keyStore.getType());
@@ -146,7 +151,7 @@ public class UtilitatsXifrar {
             String algorithm = key.getAlgorithm();
             System.out.println("Algorismo de la clava " + alias + ": " + algorithm);
 
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
         }
 
@@ -168,12 +173,111 @@ public class UtilitatsXifrar {
             keyStore.setEntry("mykeystore", skEntry, new KeyStore.PasswordProtection(pass.toCharArray()));
             keyStore.store(new FileOutputStream("src/Files/mykeystore.jck"), "password".toCharArray());
 
-        }catch(Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    public static void getPublicKeyCert() throws FileNotFoundException, CertificateException {
+        Scanner sc = new Scanner(System.in);
+        System.out.println("Introduce la ruta del certificado");
+        String ruta = sc.nextLine();
+
+        PublicKey publicKey = getPublicKey(ruta);
+        System.out.println("Algorithm: " + publicKey.getAlgorithm());
+        System.out.println("Format: " + publicKey.getFormat());
+        System.out.println("Key Info: " + new String(publicKey.toString()));
+
+    }
+
+    public static PublicKey getPublicKey(String fitxer) throws CertificateException, FileNotFoundException {
+        FileInputStream fis = new FileInputStream(new File(fitxer));
+        CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
+        X509Certificate cert = (X509Certificate) certFactory.generateCertificate(fis);
+        return cert.getPublicKey();
+    }
+
+    public static void getPublicKeyAsimetricKey() throws Exception {
+        Scanner sc = new Scanner(System.in);
+
+        System.out.println("introduce la ruta del keyStore");
+        String ruta = sc.nextLine();
+
+        System.out.println("Introduce el alias");
+        String alias = sc.nextLine();
+
+        System.out.println("Introduce el password del keyStore");
+        String ksPassword = sc.nextLine();
+
+        System.out.println("Introduce el password de la clave");
+        String keypass = sc.nextLine();
+
+        KeyStore ks = KeyStore.getInstance("JCEKS");
+
+        try (FileInputStream fis = new FileInputStream(ruta)) {
+            ks.load(fis, ksPassword.toCharArray());
+        }
+
+        PublicKey publicKey = getPublicKey(ks, alias, keypass);
+        System.out.println("Public key algorithm: " + publicKey.getAlgorithm());
+        System.out.println("Public key format: " + publicKey.getFormat());
+        System.out.println("Public key: " + publicKey);
+    }
+
+    public static PublicKey getPublicKey(KeyStore ks, String alias, String pw) throws Exception {
+        Key key = ks.getKey(alias, pw.toCharArray());
+        if (key instanceof PublicKey) {
+            return (PublicKey) key;
+        }
+        Certificate cert = ks.getCertificate(alias);
+        return cert.getPublicKey();
+    }
 
 
+    public static void getSignature() throws NoSuchAlgorithmException, InvalidKeySpecException, KeyStoreException, FileNotFoundException, UnrecoverableKeyException {
+        Scanner sc = new Scanner(System.in);
 
+        System.out.println("introduce la ruta del keyStore");
+        String ruta = sc.nextLine();
+
+        System.out.println("Introduce el alias");
+        String alias = sc.nextLine();
+
+        System.out.println("Introduce el password del keyStore");
+        String ksPassword = sc.nextLine();
+
+        System.out.println("Introduce el password de la clave");
+        String keyPassword = sc.nextLine();
+
+        System.out.println("Introduce los datos");
+        String data = sc.nextLine();
+
+        KeyStore ks = KeyStore.getInstance("JCEKS");
+        try (InputStream is = new FileInputStream(ruta)) {
+            ks.load(is, ksPassword.toCharArray());
+        } catch (CertificateException | IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        PrivateKey privateKey = (PrivateKey) ks.getKey(alias, keyPassword.toCharArray());
+
+        byte[] signature = signData(data.getBytes(), privateKey);
+        System.out.println(new String (signature));
+    }
+
+
+    public static byte[] signData(byte[] data, PrivateKey priv) {
+        byte[] signature = null;
+
+        try {
+            Signature signer = Signature.getInstance("SHA1withRSA");
+            signer.initSign(priv);
+            signer.update(data);
+            signature = signer.sign();
+        } catch (Exception ex) {
+            System.err.println("Error signant les dades: " + ex);
+        }
+        return signature;
     }
 
 }

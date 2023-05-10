@@ -1,7 +1,11 @@
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.security.KeyStore;
+import java.security.cert.CertificateException;
 import java.util.Scanner;
 
 public class Main {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         UtilitatsXifrar utilitatsXifrar = new UtilitatsXifrar();
         Scanner sc = new Scanner(System.in);
         while (true) {
@@ -18,6 +22,14 @@ public class Main {
                     break;
                 case 3:
                     UtilitatsXifrar.addSecretKeyToKeyStore();
+                case 4:
+                    UtilitatsXifrar.getPublicKeyCert();
+                    break;
+                case 5:
+                    UtilitatsXifrar.getPublicKeyAsimetricKey();
+                    break;
+                case 6:
+                    UtilitatsXifrar.getSignature();
                     break;
             }
         }

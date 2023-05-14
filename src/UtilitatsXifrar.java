@@ -197,7 +197,7 @@ public class UtilitatsXifrar {
         return cert.getPublicKey();
     }
 
-    public static void getPublicKeyAsimetricKey() throws Exception {
+    public static PublicKey getPublicKeyAsimetricKey() throws Exception {
         Scanner sc = new Scanner(System.in);
 
         System.out.println("introduce la ruta del keyStore");
@@ -222,6 +222,7 @@ public class UtilitatsXifrar {
         System.out.println("Public key algorithm: " + publicKey.getAlgorithm());
         System.out.println("Public key format: " + publicKey.getFormat());
         System.out.println("Public key: " + publicKey);
+        return publicKey;
     }
 
     public static PublicKey getPublicKey(KeyStore ks, String alias, String pw) throws Exception {
@@ -234,7 +235,7 @@ public class UtilitatsXifrar {
     }
 
 
-    public static void getSignature() throws NoSuchAlgorithmException, InvalidKeySpecException, KeyStoreException, FileNotFoundException, UnrecoverableKeyException {
+    public static byte[] getSignature() throws NoSuchAlgorithmException, InvalidKeySpecException, KeyStoreException, FileNotFoundException, UnrecoverableKeyException {
         Scanner sc = new Scanner(System.in);
 
         System.out.println("introduce la ruta del keyStore");
@@ -263,6 +264,7 @@ public class UtilitatsXifrar {
 
         byte[] signature = signData(data.getBytes(), privateKey);
         System.out.println(new String (signature));
+        return signature;
     }
 
 
@@ -280,4 +282,97 @@ public class UtilitatsXifrar {
         return signature;
     }
 
+    public static boolean validateSignature(byte[] data, byte[] signature, PublicKey pub) {
+        boolean isValid = false;
+        try {
+            Signature signer = Signature.getInstance("SHA1withRSA");
+            signer.initVerify(pub);
+            signer.update(data);
+            isValid = signer.verify(signature);
+        } catch (Exception ex) {
+            System.err.println("Error validant les dades: " + ex);
+        }
+        return isValid;
+    }
+
+    public static void validateinfo() throws Exception {
+        Scanner sc = new Scanner(System.in);
+        System.out.println("Introduce el data");
+    String data = sc.nextLine();
+        System.out.println(validateSignature(data.getBytes(), getSignature(),getPublicKeyAsimetricKey()));
+    }
+
+    public static byte[][] encryptWrappedData(byte[] data, PublicKey pub) {
+        byte[][] encWrappedData = new byte[2][];
+        // Generació de clau simètrica
+        try {
+            KeyGenerator kgen = KeyGenerator.getInstance("AES");
+            kgen.init(128);
+            SecretKey sKey = kgen.generateKey();
+
+            // Dades a xifrar
+            Cipher cipher = Cipher.getInstance("AES");
+            cipher.init(Cipher.ENCRYPT_MODE, sKey);
+            byte[] encMsg = cipher.doFinal(data);
+
+            // Algorisme de xifrat asimetric i clau pública de B
+            cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
+            cipher.init(Cipher.WRAP_MODE, pub);
+
+            // Algorisme de xifrat simètric i clau xifrada
+            byte[] encKey = cipher.wrap(sKey);
+
+            // Dades xifrades
+            encWrappedData[0] = encMsg;
+            encWrappedData[1] = encKey;
+        } catch (Exception  ex) {
+            System.err.println("Ha succeït un error xifrant: " + ex);
+        }
+        return encWrappedData;
+    }
+
+    public static byte[] decryptWrappedData(byte[][] encWrappedData, PrivateKey priv) {
+        try {
+            // Algorisme de xifrat asimetric:
+            Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
+            // Desxifrar amb clau privada de B
+            cipher.init(Cipher.UNWRAP_MODE, priv);
+            SecretKey sKey = (SecretKey) cipher.unwrap(encWrappedData[1], "AES", Cipher.SECRET_KEY);
+            // Algorisme de xifrat simètric
+            cipher = Cipher.getInstance("AES");
+            // Desxifrar les dades xifrades amb la clau simètrica
+            cipher.init(Cipher.DECRYPT_MODE, sKey);
+            byte[] decMsg = cipher.doFinal(encWrappedData[0]);
+            // Dades desxifrades
+            return decMsg;
+        } catch (Exception ex) {
+            System.err.println("Ha succeït un error desxifrant: " + ex);
+            return null;
+        }
+    }
+
+    public static void encryptDecryptWrappedData(){
+        try{
+            KeyPair keyPairA = randomGenerate(1024);
+            PublicKey publicKeyA = keyPairA.getPublic();
+            PrivateKey privateKeyA = keyPairA.getPrivate();
+
+            KeyPair keyPairB = randomGenerate(1024);
+            PublicKey publicKeyB = keyPairB.getPublic();
+            PrivateKey privateKeyB = keyPairB.getPrivate();
+
+            String message = "mensaje secreto";
+
+            byte[][] encWrappedData = encryptWrappedData(message.getBytes(), publicKeyB);
+            System.out.println("Mensaje Cifrado : ");
+            System.out.println(Arrays.toString(encWrappedData));
+
+            byte[] decMsg = decryptWrappedData(encWrappedData, privateKeyB);
+            System.out.println("Mensaje Descifrado : ");
+            System.out.println(new String(decMsg));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+    }
 }
